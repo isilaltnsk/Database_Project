@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.flake8_cache/
+
+# Secrets / local configuration
+.env
+*.env
+instance/
+config_local.py
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local database dumps
+*.sqlite
+*.sqlite3
