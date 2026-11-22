@@ -10,6 +10,10 @@
 -- Re-running this file drops and recreates all tables (development only).
 -- =====================================================================
 
+-- Deleting users: users are never physically deleted. Closing an account sets
+-- Users.is_active = FALSE (and BudgetMembers.is_active = FALSE); every foreign
+-- key that references Users uses ON DELETE RESTRICT to protect the history.
+
 -- ---------- Clean start (reverse dependency order) ----------
 DROP TABLE IF EXISTS RecurringPayments CASCADE;
 DROP TABLE IF EXISTS FinancialGoals    CASCADE;
@@ -29,6 +33,7 @@ CREATE TABLE Users (
     email          VARCHAR(100) NOT NULL UNIQUE,
     password_hash  VARCHAR(255) NOT NULL,            -- salted hash, never the plain password
     role           VARCHAR(10)  NOT NULL DEFAULT 'User',
+    is_active      BOOLEAN      NOT NULL DEFAULT TRUE,   -- soft deletion: closed accounts are kept
     created_at     TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_users_role CHECK (role IN ('User', 'Admin'))
 );
@@ -36,7 +41,7 @@ CREATE TABLE Users (
 -- ---------- 2. Accounts (Ahmet Selim Şahintürk) ----------
 CREATE TABLE Accounts (
     account_id  SERIAL        PRIMARY KEY,
-    user_id     INT           NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
+    user_id     INT           NOT NULL REFERENCES Users(user_id) ON DELETE RESTRICT,
     name        VARCHAR(100)  NOT NULL,
     type        VARCHAR(12)   NOT NULL,
     balance     NUMERIC(14,2) NOT NULL DEFAULT 0,    -- opening balance; may be negative for credit cards
@@ -51,7 +56,7 @@ CREATE TABLE Categories (
     category_id  SERIAL      PRIMARY KEY,
     name         VARCHAR(50) NOT NULL,
     is_default   BOOLEAN     NOT NULL DEFAULT FALSE,
-    user_id      INT         REFERENCES Users(user_id) ON DELETE CASCADE,  -- NULL for default categories
+    user_id      INT         REFERENCES Users(user_id) ON DELETE RESTRICT,  -- NULL for default categories
     CONSTRAINT chk_categories_owner CHECK (
         (is_default AND user_id IS NULL) OR (NOT is_default AND user_id IS NOT NULL)
     ),
@@ -63,7 +68,7 @@ CREATE UNIQUE INDEX uq_categories_default_name ON Categories (name) WHERE user_i
 -- ---------- 5. SharedBudgets (Işıl Altınışık) ----------
 CREATE TABLE SharedBudgets (
     budget_id    SERIAL        PRIMARY KEY,
-    owner_id     INT           REFERENCES Users(user_id) ON DELETE SET NULL,  -- creator; budget survives if creator is deleted
+    owner_id     INT           NOT NULL REFERENCES Users(user_id) ON DELETE RESTRICT,  -- creator of the budget
     name         VARCHAR(100)  NOT NULL,
     total_limit  NUMERIC(12,2) NOT NULL,
     start_date   DATE          NOT NULL,
@@ -93,9 +98,10 @@ CREATE INDEX idx_transactions_budget_cat    ON Transactions (budget_id, category
 -- ---------- 6. BudgetMembers (Safa Oğuzhan Dişbudak) ----------
 CREATE TABLE BudgetMembers (
     budget_id  INT         NOT NULL REFERENCES SharedBudgets(budget_id) ON DELETE CASCADE,
-    user_id    INT         NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
+    user_id    INT         NOT NULL REFERENCES Users(user_id)           ON DELETE RESTRICT,
     role       VARCHAR(15) NOT NULL DEFAULT 'Regular',
     joined_at  TIMESTAMP   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active  BOOLEAN     NOT NULL DEFAULT TRUE,        -- FALSE = left or was removed (history is kept)
     PRIMARY KEY (budget_id, user_id),
     CONSTRAINT chk_members_role CHECK (role IN ('Budget Manager', 'Regular'))
 );
@@ -114,7 +120,7 @@ CREATE TABLE SpendingLimits (
 CREATE TABLE Contributions (
     contribution_id  SERIAL        PRIMARY KEY,
     budget_id        INT           NOT NULL REFERENCES SharedBudgets(budget_id) ON DELETE CASCADE,
-    user_id          INT           NOT NULL REFERENCES Users(user_id)           ON DELETE CASCADE,
+    user_id          INT           NOT NULL REFERENCES Users(user_id)           ON DELETE RESTRICT,
     amount           NUMERIC(12,2) NOT NULL,
     date             DATE          NOT NULL DEFAULT CURRENT_DATE,
     CONSTRAINT chk_contributions_amount CHECK (amount > 0)
@@ -124,7 +130,7 @@ CREATE INDEX idx_contributions_budget ON Contributions (budget_id);
 -- ---------- 9. FinancialGoals (Ahmet Selim Şahintürk) ----------
 CREATE TABLE FinancialGoals (
     goal_id         SERIAL        PRIMARY KEY,
-    user_id         INT           NOT NULL REFERENCES Users(user_id)         ON DELETE CASCADE,
+    user_id         INT           NOT NULL REFERENCES Users(user_id)         ON DELETE RESTRICT,
     account_id      INT           NOT NULL UNIQUE REFERENCES Accounts(account_id) ON DELETE CASCADE,  -- 1:1 with Accounts
     name            VARCHAR(100)  NOT NULL,
     target_amount   NUMERIC(12,2) NOT NULL,
