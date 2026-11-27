@@ -80,7 +80,7 @@ CREATE TABLE SharedBudgets (
 -- ---------- 4. Transactions (Mehmet Arda Öncel) ----------
 CREATE TABLE Transactions (
     transaction_id  SERIAL        PRIMARY KEY,
-    account_id      INT           NOT NULL REFERENCES Accounts(account_id)     ON DELETE CASCADE,
+    account_id      INT           NOT NULL REFERENCES Accounts(account_id)     ON DELETE RESTRICT,  -- account with transactions cannot be deleted
     category_id     INT           NOT NULL REFERENCES Categories(category_id)  ON DELETE NO ACTION,
     budget_id       INT           REFERENCES SharedBudgets(budget_id)          ON DELETE SET NULL,  -- NULL = personal
     amount          NUMERIC(12,2) NOT NULL,
